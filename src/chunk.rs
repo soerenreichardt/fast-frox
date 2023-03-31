@@ -1,7 +1,7 @@
 use crate::{debug::ChunkDebug, op_code::OpCode, value::Value};
 
 pub struct Chunk {
-    code: Vec<OpCode>,
+    pub(crate) code: Vec<OpCode>,
     constants: Vec<Value>,
     lines: Vec<Line>
 }
