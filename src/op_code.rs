@@ -2,7 +2,7 @@ use crate::{InstructionSize, debug::Print};
 
 pub enum OpCode  {
     OpReturn,
-    OpConstant(usize)
+    OpConstant(u8)
 }
 
 impl Print for OpCode {
@@ -10,7 +10,7 @@ impl Print for OpCode {
         match self {
             Self::OpReturn => println!("OP_RETURN"),
             Self::OpConstant(index) => {
-                let value = constants.get(*index).unwrap();
+                let value = constants.get(*index as usize).unwrap();
                 println!("OP_CONSTANT {:>4} {}", index, value)
             },
         }
