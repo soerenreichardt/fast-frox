@@ -1,8 +1,9 @@
-use crate::{debug::ChunkDebug, op_code::OpCode, value::Value};
+use crate::{debug::ChunkDebug, op_code::OpCode, value::Value, InstructionSize};
 
+#[derive(Default)]
 pub struct Chunk {
-    pub(crate) code: Vec<OpCode>,
-    constants: Vec<Value>,
+    pub(crate) code: Vec<u8>,
+    pub(crate) constants: Vec<Value>,
     lines: Vec<Line>
 }
 
@@ -17,7 +18,7 @@ impl Chunk {
         Chunk { code: Vec::new(), constants: Vec::new(), lines: Vec::new() }
     }
 
-    pub fn write_chunk(&mut self, chunk: OpCode, line: usize) {
+    pub fn write_chunk(&mut self, chunk: u8, line: usize) {
         self.code.push(chunk);
         self.set_line(line);
     }
@@ -28,22 +29,12 @@ impl Chunk {
     }
 
     fn set_line(&mut self, line: usize) {
-        if self.lines.len() > 0 && self.lines.last().unwrap().line == line {
+        if !self.lines.is_empty() && self.lines.last().unwrap().line == line {
             let last = self.lines.last_mut().unwrap();
-            last.length = last.length + 1;
+            last.length += 1;
             return
         }
         self.lines.push(Line { line, length: 1 });
-    }
-}
-
-impl ChunkDebug<OpCode> for Chunk {
-    fn data(&self) -> &[OpCode] {
-        &self.code
-    }
-
-    fn constants(&self) -> &[Value] {
-        &self.constants
     }
 
     fn get_line(&self, offset: usize) -> usize {
@@ -53,14 +44,45 @@ impl ChunkDebug<OpCode> for Chunk {
             if offset < length {
                 return last_line.line
             }
-            length = length + line.length as usize;
+            length += line.length as usize;
             last_line = line;
         }
 
         if offset < length {
-            return last_line.line
+            last_line.line
         } else {
             panic!()
         }
     }
+}
+
+impl ChunkDebug<OpCode> for Chunk {
+    fn disassemblee_chunk(&self, name: &str) {
+        println!("== {} ==", name);
+        let mut offset = 0;
+        while offset < self.code.len() {
+            offset += self.disassemble_instruction(offset);
+        }
+    }
+
+    fn disassemble_instruction(&self, offset: usize) -> usize {
+        print!("{:0>4} ", offset);
+        if offset > 0 && self.get_line(offset) == self.get_line(offset - 1) {
+            print!("   | ");
+        } else {
+            print!("{:>4} ", self.get_line(offset))
+        }
+
+        let instruction: OpCode = self.code.get(offset).unwrap().try_into().unwrap();
+        match instruction {
+            OpCode::OpReturn => println!("OP_RETURN"),
+            OpCode::OpConstant => {
+                let constant_index = *self.code.get(offset + 1).unwrap() as usize;
+                let constant_value = self.constants.get(constant_index).unwrap();
+                println!("OP_CONSTANT {:>4} {}", constant_index, constant_value)
+            }
+        }
+        instruction.size()
+    }
+
 }

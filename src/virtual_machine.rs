@@ -1,12 +1,13 @@
 
 
-use crate::{chunk::Chunk, op_code::OpCode, debug::ChunkDebug};
+use crate::{chunk::Chunk, op_code::OpCode};
 
+#[derive(Default)]
 pub struct VirtualMachine {
 }
 
-struct InstructionPointer<'a> {
-    code: &'a [OpCode],
+struct InstructionPointer {
+    ptr: *const u8,
     offset: usize
 }
 
@@ -31,12 +32,14 @@ impl VirtualMachine {
 
     fn run(&self, mut ip: InstructionPointer, chunk: &Chunk) -> InterpretResult {
         loop {
-            match ip.next() {
-                OpCode::OpReturn => return InterpretResult::Ok,
-                OpCode::OpConstant(index) => {
-                    let constant = chunk.constants().get(*index as usize).unwrap();
-                    println!("{}", constant)
+            match (&ip.next()).try_into() {
+                Ok(OpCode::OpReturn) => return InterpretResult::Ok,
+                Ok(OpCode::OpConstant) => {
+                    let constant_index = ip.next();
+                    let constant_value = chunk.constants.get(constant_index as usize).unwrap();
+                    println!("{}", constant_value);
                 },
+                _ => return InterpretResult::RuntimeError
             }
         }
     }
@@ -48,14 +51,14 @@ impl Drop for VirtualMachine {
     }
 }
 
-impl<'a> InstructionPointer<'a> {
-    fn new(code: &'a [OpCode]) -> Self {
-        InstructionPointer { code, offset: 0 }
+impl InstructionPointer {
+    fn new(code: &[u8]) -> Self {
+        InstructionPointer { ptr: code.as_ptr(), offset: 0 }
     }
 
-    fn next(&mut self) -> &OpCode {
-        let op_code = unsafe { self.code.get_unchecked(self.offset) };
-        self.offset = self.offset + 1;
+    fn next(&mut self) -> u8 {
+        let op_code = unsafe { self.ptr.add(self.offset).read() };
+        self.offset += 1;
         op_code
     }
 }

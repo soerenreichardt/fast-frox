@@ -1,26 +1,34 @@
-use crate::{InstructionSize, debug::Print};
+use crate::{InstructionSize};
 
+#[repr(u8)]
+#[derive(Debug)]
 pub enum OpCode  {
-    OpReturn,
-    OpConstant(u8)
-}
-
-impl Print for OpCode {
-    fn print(&self, constants: &[crate::value::Value]) {
-        match self {
-            Self::OpReturn => println!("OP_RETURN"),
-            Self::OpConstant(index) => {
-                let value = constants.get(*index as usize).unwrap();
-                println!("OP_CONSTANT {:>4} {}", index, value)
-            },
-        }
-    }
+    OpReturn = 0,
+    OpConstant = 1
 }
 
 impl InstructionSize for OpCode {
     fn size(&self) -> usize {
         match self {
-            Self::OpReturn | Self::OpConstant(_) => 1
+            Self::OpReturn => 1,
+            Self::OpConstant => 2
         }
     }
+}
+
+impl TryFrom<&u8> for OpCode {
+    type Error = String;
+
+    fn try_from(value: &u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(OpCode::OpReturn),
+            1 => Ok(OpCode::OpConstant),
+            _ => Err("unknown value".to_string())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
 }
