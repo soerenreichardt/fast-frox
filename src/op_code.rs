@@ -27,8 +27,3 @@ impl TryFrom<&u8> for OpCode {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-}

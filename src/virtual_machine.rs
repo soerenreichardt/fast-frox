@@ -1,14 +1,13 @@
 
 
-use crate::{chunk::Chunk, op_code::OpCode};
+use crate::{chunk::Chunk, op_code::OpCode, debug::ChunkDebug};
 
 #[derive(Default)]
 pub struct VirtualMachine {
 }
 
 struct InstructionPointer {
-    ptr: *const u8,
-    offset: usize
+    ptr: *const u8
 }
 
 pub enum InterpretResult {
@@ -32,6 +31,10 @@ impl VirtualMachine {
 
     fn run(&self, mut ip: InstructionPointer, chunk: &Chunk) -> InterpretResult {
         loop {
+            if true {
+                let offset = ip.address() - chunk.code.as_ptr() as usize;
+                chunk.disassemble_instruction(offset);
+            }
             match (&ip.next()).try_into() {
                 Ok(OpCode::OpReturn) => return InterpretResult::Ok,
                 Ok(OpCode::OpConstant) => {
@@ -53,12 +56,34 @@ impl Drop for VirtualMachine {
 
 impl InstructionPointer {
     fn new(code: &[u8]) -> Self {
-        InstructionPointer { ptr: code.as_ptr(), offset: 0 }
+        InstructionPointer { ptr: code.as_ptr() }
     }
 
     fn next(&mut self) -> u8 {
-        let op_code = unsafe { self.ptr.add(self.offset).read() };
-        self.offset += 1;
-        op_code
+        unsafe { 
+            let value = self.ptr.read();
+            self.ptr = self.ptr.add(1);
+            value
+        }
+    }
+
+    fn address(&self) -> usize {
+        self.ptr as usize
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_iterate_with_instruction_pointer() {
+        let data = vec![0, 1, 2, 3];
+        let mut ip = InstructionPointer::new(&data);
+
+        assert_eq!(ip.next(), 0);
+        assert_eq!(ip.next(), 1);
+        assert_eq!(ip.next(), 2);
+        assert_eq!(ip.next(), 3);
     }
 }
