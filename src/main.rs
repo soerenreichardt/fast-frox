@@ -7,7 +7,7 @@ fn main() {
     chunk.write_chunk(constant, 123);
     chunk.write_chunk(OpCode::OpReturn as u8, 123);
 
-    let vm = VirtualMachine::new();
+    let mut vm = VirtualMachine::new();
     vm.init();
 
     chunk.disassemblee_chunk("test chunk");
