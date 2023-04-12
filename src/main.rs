@@ -1,32 +1,47 @@
-use fast_frox::{
-    chunk::Chunk, debug::ChunkDebug, op_code::OpCode, virtual_machine::VirtualMachine, value::Value,
-};
+use std::{env, io::{self, BufRead, Write}, fs};
+
+use fast_frox::virtual_machine::{VirtualMachine, InterpretResult};
 
 pub(crate) static DEBUG: bool = false;
 
 fn main() {
-    let mut chunk = Chunk::new();
-    write_constant(1.2, &mut chunk);
-    write_constant(3.4, &mut chunk);
-
-    chunk.write_chunk(OpCode::OpAdd as u8, 123);
-    write_constant(5.6, &mut chunk);
-
-    chunk.write_chunk(OpCode::OpDivide as u8, 123);
-    chunk.write_chunk(OpCode::OpNegate as u8, 123);
-    chunk.write_chunk(OpCode::OpReturn as u8, 123);
+    let args = env::args().collect::<Vec<_>>();
 
     let mut vm = VirtualMachine::new(DEBUG);
     vm.init();
 
-    chunk.disassemblee_chunk("test chunk");
-    vm.interpret(&chunk);
+    match args.as_slice() {
+        [_] => repl(&mut vm),
+        [_, path] => runFile(path, &mut vm),
+        _ => panic!("Usage: fast-frox [path]")
+    }
 
     drop(vm);
 }
 
-fn write_constant(value: Value, chunk: &mut Chunk) {
-    let constant = chunk.add_constant(value);
-    chunk.write_chunk(OpCode::OpConstant as u8, 123);
-    chunk.write_chunk(constant, 123);
+fn repl(vm: &mut VirtualMachine) {
+    let stdin = io::stdin();
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+        let mut buffer = String::new();
+        stdin.lock().read_line(&mut buffer).unwrap();
+        buffer = buffer.trim().to_string();
+        if buffer.is_empty() {
+            return;
+        }
+        vm.interpret(buffer.as_str());
+    }
 }
+
+fn runFile(path: &str, vm: &mut VirtualMachine) {
+    let source = fs::read_to_string(path)
+        .expect("Should have been able to read the file");
+    match vm.interpret(source.as_str()) {
+        InterpretResult::CompileError => std::process::exit(65),
+        InterpretResult::RuntimeError => std::process::exit(70),
+        _ => ()
+    }
+}
+
+

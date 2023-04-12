@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value};
+use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value, compiler::Compiler};
 
 pub struct VirtualMachine {
     stack: [Value; 256],
@@ -32,9 +32,8 @@ impl VirtualMachine {
         self.stack_top = self.stack.as_mut_ptr();
     }
 
-    pub fn interpret(&mut self, chunk: &Chunk) -> InterpretResult {
-        let ip = InstructionPointer::new(&chunk.code);
-        self.run(ip, chunk)
+    pub fn interpret(&mut self, source: &str) -> InterpretResult {
+        todo!()
     }
 
     fn run(&mut self, mut ip: InstructionPointer, chunk: &Chunk) -> InterpretResult {
