@@ -86,7 +86,12 @@ impl ChunkDebug<OpCode> for Chunk {
                 let constant_index = *self.code.get(offset + 1).unwrap() as usize;
                 let constant_value = self.constants.get(constant_index).unwrap();
                 println!("OP_CONSTANT {:>4} {}", constant_index, constant_value)
-            }
+            },
+            OpCode::OpNegate => println!("OP_NEGATE"),
+            OpCode::OpAdd => println!("OP_ADD"),
+            OpCode::OpSubtract => println!("OP_SUBTRACT"),
+            OpCode::OpMultiply => println!("OP_MULTIPLY"),
+            OpCode::OpDivide => println!("OP_DIVIDE"),
         }
         instruction.size()
     }

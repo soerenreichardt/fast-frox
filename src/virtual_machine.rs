@@ -42,17 +42,29 @@ impl VirtualMachine {
             if self.debug {
                 self.debug(&ip, chunk);
             }
-            match (&ip.next()).try_into() {
-                Ok(OpCode::OpReturn) => {
+
+            let instruction: OpCode = match (&ip.next()).try_into() {
+                Ok(instruction) => instruction,
+                Err(_) => return InterpretResult::RuntimeError
+            };
+            match instruction {
+                OpCode::OpReturn => {
                     println!("{}", self.pop());
                     return InterpretResult::Ok;
                 }
-                Ok(OpCode::OpConstant) => {
+                OpCode::OpConstant => {
                     let constant_index = ip.next();
                     let constant_value = chunk.constants.get(constant_index as usize).unwrap();
                     self.push(*constant_value);
+                },
+                OpCode::OpNegate => {
+                    let negated_value = -self.pop();
+                    self.push(negated_value);
                 }
-                _ => return InterpretResult::RuntimeError,
+                OpCode::OpAdd => self.binary_operation(std::ops::Add::add),
+                OpCode::OpSubtract => self.binary_operation(std::ops::Sub::sub),
+                OpCode::OpMultiply => self.binary_operation(std::ops::Mul::mul),
+                OpCode::OpDivide => self.binary_operation(std::ops::Div::div),
             }
         }
     }
@@ -69,6 +81,12 @@ impl VirtualMachine {
             self.stack_top = self.stack_top.sub(1);
             *self.stack_top
         }
+    }
+
+    fn binary_operation<Op: FnOnce(Value, Value) -> Value>(&mut self, op: Op) {
+        let rhs = self.pop();
+        let lhs = self.pop();
+        self.push(op(lhs, rhs));
     }
 
     fn debug(&self, ip: &InstructionPointer, chunk: &Chunk) {
