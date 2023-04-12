@@ -58,8 +58,10 @@ impl VirtualMachine {
                     self.push(*constant_value);
                 },
                 OpCode::OpNegate => {
-                    let negated_value = -self.pop();
-                    self.push(negated_value);
+                    unsafe { 
+                        let addr = self.stack_top.sub(1);
+                        *addr = -*addr;
+                    }
                 }
                 OpCode::OpAdd => self.binary_operation(std::ops::Add::add),
                 OpCode::OpSubtract => self.binary_operation(std::ops::Sub::sub),
