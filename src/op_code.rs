@@ -1,17 +1,17 @@
-use crate::{InstructionSize};
+use crate::InstructionSize;
 
 #[repr(u8)]
 #[derive(Debug)]
-pub enum OpCode  {
+pub enum OpCode {
     OpReturn = 0,
-    OpConstant = 1
+    OpConstant = 1,
 }
 
 impl InstructionSize for OpCode {
     fn size(&self) -> usize {
         match self {
             Self::OpReturn => 1,
-            Self::OpConstant => 2
+            Self::OpConstant => 2,
         }
     }
 }
@@ -23,7 +23,7 @@ impl TryFrom<&u8> for OpCode {
         match value {
             0 => Ok(OpCode::OpReturn),
             1 => Ok(OpCode::OpConstant),
-            _ => Err("unknown value".to_string())
+            _ => Err("unknown value".to_string()),
         }
     }
 }

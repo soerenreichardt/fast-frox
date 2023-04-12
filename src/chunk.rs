@@ -4,18 +4,22 @@ use crate::{debug::ChunkDebug, op_code::OpCode, value::Value, InstructionSize};
 pub struct Chunk {
     pub(crate) code: Vec<u8>,
     pub(crate) constants: Vec<Value>,
-    lines: Vec<Line>
+    lines: Vec<Line>,
 }
 
 #[derive(Debug)]
 struct Line {
     line: usize,
-    length: u16
+    length: u16,
 }
 
 impl Chunk {
     pub fn new() -> Self {
-        Chunk { code: Vec::new(), constants: Vec::new(), lines: Vec::new() }
+        Chunk {
+            code: Vec::new(),
+            constants: Vec::new(),
+            lines: Vec::new(),
+        }
     }
 
     pub fn write_chunk(&mut self, chunk: u8, line: usize) {
@@ -32,7 +36,7 @@ impl Chunk {
         if !self.lines.is_empty() && self.lines.last().unwrap().line == line {
             let last = self.lines.last_mut().unwrap();
             last.length += 1;
-            return
+            return;
         }
         self.lines.push(Line { line, length: 1 });
     }
@@ -42,7 +46,7 @@ impl Chunk {
         let mut last_line = self.lines.first().unwrap();
         for line in &self.lines {
             if offset < length {
-                return last_line.line
+                return last_line.line;
             }
             length += line.length as usize;
             last_line = line;
@@ -63,6 +67,8 @@ impl ChunkDebug<OpCode> for Chunk {
         while offset < self.code.len() {
             offset += self.disassemble_instruction(offset);
         }
+
+        println!("== {} ==", name);
     }
 
     fn disassemble_instruction(&self, offset: usize) -> usize {
@@ -84,5 +90,4 @@ impl ChunkDebug<OpCode> for Chunk {
         }
         instruction.size()
     }
-
 }

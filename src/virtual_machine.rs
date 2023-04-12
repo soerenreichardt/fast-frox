@@ -1,30 +1,30 @@
-
-
 use std::mem::size_of;
 
-use crate::{chunk::Chunk, op_code::OpCode, debug::ChunkDebug, value::Value};
+use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value};
 
 pub struct VirtualMachine {
     stack: [Value; 256],
-    stack_top: *mut f64
+    stack_top: *mut f64,
+    debug: bool,
 }
 
 struct InstructionPointer {
-    ptr: *const u8
+    ptr: *const u8,
 }
 
 pub enum InterpretResult {
     Ok,
     CompileError,
-    RuntimeError
+    RuntimeError,
 }
 
 impl VirtualMachine {
-    pub fn new() -> Self {
+    pub fn new(debug: bool) -> Self {
         let mut stack = [0.0; 256];
         VirtualMachine {
             stack,
-            stack_top: stack.as_mut_ptr(), 
+            stack_top: stack.as_mut_ptr(),
+            debug,
         }
     }
 
@@ -39,17 +39,20 @@ impl VirtualMachine {
 
     fn run(&mut self, mut ip: InstructionPointer, chunk: &Chunk) -> InterpretResult {
         loop {
-            if true {
+            if self.debug {
                 self.debug(&ip, chunk);
             }
             match (&ip.next()).try_into() {
-                Ok(OpCode::OpReturn) => return InterpretResult::Ok,
+                Ok(OpCode::OpReturn) => {
+                    println!("{}", self.pop());
+                    return InterpretResult::Ok;
+                }
                 Ok(OpCode::OpConstant) => {
                     let constant_index = ip.next();
                     let constant_value = chunk.constants.get(constant_index as usize).unwrap();
                     self.push(*constant_value);
-                },
-                _ => return InterpretResult::RuntimeError
+                }
+                _ => return InterpretResult::RuntimeError,
             }
         }
     }
@@ -69,7 +72,9 @@ impl VirtualMachine {
     }
 
     fn debug(&self, ip: &InstructionPointer, chunk: &Chunk) {
-        for slot_address in (self.stack.as_ptr() as usize..self.stack_top as usize).step_by(size_of::<f64>()) {
+        for slot_address in
+            (self.stack.as_ptr() as usize..self.stack_top as usize).step_by(size_of::<f64>())
+        {
             let slot_value = unsafe { *(slot_address as *const f64) };
             println!("[{}]", slot_value)
         }
@@ -79,9 +84,7 @@ impl VirtualMachine {
 }
 
 impl Drop for VirtualMachine {
-    fn drop(&mut self) {
-        
-    }
+    fn drop(&mut self) {}
 }
 
 impl InstructionPointer {
@@ -90,7 +93,7 @@ impl InstructionPointer {
     }
 
     fn next(&mut self) -> u8 {
-        unsafe { 
+        unsafe {
             let value = self.ptr.read();
             self.ptr = self.ptr.add(1);
             value
