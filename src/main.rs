@@ -15,7 +15,7 @@ fn main() {
 
     match args.as_slice() {
         [_] => repl(&mut vm),
-        [_, path] => runFile(path, &mut vm),
+        [_, path] => run_file(path, &mut vm),
         _ => panic!("Usage: fast-frox [path]"),
     }
 
@@ -37,7 +37,7 @@ fn repl(vm: &mut VirtualMachine) {
     }
 }
 
-fn runFile(path: &str, vm: &mut VirtualMachine) {
+fn run_file(path: &str, vm: &mut VirtualMachine) {
     let source = fs::read_to_string(path).expect("Should have been able to read the file");
     match vm.interpret(source.as_str()) {
         InterpretResult::CompileError => std::process::exit(65),

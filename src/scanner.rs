@@ -1,4 +1,4 @@
-use std::{iter::{Enumerate}, str::Chars};
+use std::{iter::Enumerate, str::Chars};
 
 use crate::peek_peek_iterator::PeekPeekIterator;
 
@@ -6,7 +6,7 @@ pub(crate) struct Scanner<'a> {
     source_iterator: PeekPeekIterator<Enumerate<Chars<'a>>>,
     source: &'a str,
     line: usize,
-    start: usize
+    start: usize,
 }
 
 #[derive(Debug, PartialEq)]
@@ -62,7 +62,7 @@ pub(crate) enum TokenType {
     While,
 
     Error(String),
-    EOF,
+    Eof,
 }
 
 impl<'a> Scanner<'a> {
@@ -71,14 +71,14 @@ impl<'a> Scanner<'a> {
             source_iterator: PeekPeekIterator::new(source.chars().enumerate()),
             source,
             line: 1,
-            start: 0
+            start: 0,
         }
     }
 
     pub(crate) fn scan_token(&mut self) -> Token {
         self.skip_whitespace();
         match self.source_iterator.next() {
-            None => Token::new(TokenType::EOF, 0, 0, 0),
+            None => Token::new(TokenType::Eof, 0, 0, 0),
             Some((pos, c)) => {
                 self.start = pos;
                 return self.match_char(c);
@@ -101,30 +101,38 @@ impl<'a> Scanner<'a> {
             '-' => self.token(TokenType::Minus),
             '*' => self.token(TokenType::Star),
             '/' => self.token(TokenType::Slash),
-            '!' => if self.match_token('=') { 
-                self.token(TokenType::BangEqual)
-            } else { 
-                self.token(TokenType::Bang)
-            },
-            '=' => if self.match_token('=') {
-                self.token(TokenType::EqualEqual)
-            } else {
-                self.token(TokenType::Equal)
-            },
-            '<' => if self.match_token('=') {
-                self.token(TokenType::LessEqual)
-            } else {
-                self.token(TokenType::Less)
-            },
-            '>' => if self.match_token('=') {
-                self.token(TokenType::GreaterEqual)
-            } else {
-                self.token(TokenType::Greater)
+            '!' => {
+                if self.match_token('=') {
+                    self.token(TokenType::BangEqual)
+                } else {
+                    self.token(TokenType::Bang)
+                }
+            }
+            '=' => {
+                if self.match_token('=') {
+                    self.token(TokenType::EqualEqual)
+                } else {
+                    self.token(TokenType::Equal)
+                }
+            }
+            '<' => {
+                if self.match_token('=') {
+                    self.token(TokenType::LessEqual)
+                } else {
+                    self.token(TokenType::Less)
+                }
+            }
+            '>' => {
+                if self.match_token('=') {
+                    self.token(TokenType::GreaterEqual)
+                } else {
+                    self.token(TokenType::Greater)
+                }
             }
             '"' => self.string(),
-            c if c.is_digit(10) => self.number(),
+            c if c.is_ascii_digit() => self.number(),
             c if c.is_alphabetic() => self.identifier(),
-            _ => todo!()
+            _ => todo!(),
         }
     }
 
@@ -134,19 +142,28 @@ impl<'a> Scanner<'a> {
             Some((_, c)) if c == &expected => {
                 self.source_iterator.next();
                 true
-            },
-            _ => false
+            }
+            _ => false,
         }
     }
 
     fn token(&mut self, tpe: TokenType) -> Token {
         let source_len = &self.source.len();
-        let head_position = self.source_iterator.peek().map(|(pos, _)| pos).unwrap_or(source_len);
+        let head_position = self
+            .source_iterator
+            .peek()
+            .map(|(pos, _)| pos)
+            .unwrap_or(source_len);
         Token::new(tpe, self.start, head_position - self.start, self.line)
     }
 
     fn error(&self, message: String) -> Token {
-        Token::new(TokenType::Error(message), self.start, self.source.len() - self.start, self.line)
+        Token::new(
+            TokenType::Error(message),
+            self.start,
+            self.source.len() - self.start,
+            self.line,
+        )
     }
 
     fn skip_whitespace(&mut self) {
@@ -162,21 +179,19 @@ impl<'a> Scanner<'a> {
                         self.line += 1;
                         self.source_iterator.next();
                         ()
-                    },
+                    }
                     '/' => match self.source_iterator.peek_peek() {
                         None => return,
-                        Some((_, '/')) => {
-                            loop {
-                                match self.source_iterator.next() {
-                                    None | Some((_, '\n')) => break,
-                                    _ => ()
-                                }
+                        Some((_, '/')) => loop {
+                            match self.source_iterator.next() {
+                                None | Some((_, '\n')) => break,
+                                _ => (),
                             }
-                        }
-                        _ => todo!()
-                    }
-                    _ => return
-                }
+                        },
+                        _ => todo!(),
+                    },
+                    _ => return,
+                },
             }
         }
     }
@@ -187,7 +202,7 @@ impl<'a> Scanner<'a> {
                 None => return self.error("Unterminated string.".to_owned()),
                 Some((_, '"')) => break,
                 Some((_, c)) => {
-                    if c == &'\n' { 
+                    if c == &'\n' {
                         self.line += 1;
                     }
                     self.source_iterator.next();
@@ -205,11 +220,11 @@ impl<'a> Scanner<'a> {
 
         if let Some((_, '.')) = self.source_iterator.peek() {
             match self.source_iterator.peek_peek() {
-                Some((_, c)) if c.is_digit(10) => {
+                Some((_, c)) if c.is_ascii_digit() => {
                     self.source_iterator.next();
                     self.consume_digits();
-                },
-                _ => ()
+                }
+                _ => (),
             }
         }
 
@@ -220,7 +235,7 @@ impl<'a> Scanner<'a> {
         loop {
             match self.source_iterator.peek() {
                 None => break,
-                Some((_, c)) if !c.is_digit(10) => break,
+                Some((_, c)) if !c.is_ascii_digit() => break,
                 _ => {
                     self.source_iterator.next();
                     ()
@@ -232,15 +247,16 @@ impl<'a> Scanner<'a> {
     fn identifier(&mut self) -> Token {
         loop {
             match self.source_iterator.peek() {
-                Some((_, c)) if c.is_digit(10) || c.is_alphabetic() => {        
+                Some((_, c)) if c.is_ascii_digit() || c.is_alphabetic() => {
                     self.source_iterator.next();
                     ()
-                },
-                _ => break
+                }
+                _ => break,
             }
         }
 
-        let current_pos = self.source_iterator
+        let current_pos = self
+            .source_iterator
             .peek()
             .map(|(pos, _)| pos - 1)
             .unwrap_or(self.source.len());
@@ -267,7 +283,7 @@ impl<'a> Scanner<'a> {
             "true" => TokenType::True,
             "var" => TokenType::Var,
             "while" => TokenType::While,
-            _ => TokenType::Identifier
+            _ => TokenType::Identifier,
         }
     }
 }
@@ -282,7 +298,6 @@ impl Token {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -299,20 +314,38 @@ mod tests {
     fn should_scan_parenthesis() {
         let mut scanner = Scanner::new("(");
         let token = scanner.scan_token();
-        assert!(matches!(token, Token { tpe: TokenType::LeftParen, .. }));
+        assert!(matches!(
+            token,
+            Token {
+                tpe: TokenType::LeftParen,
+                ..
+            }
+        ));
     }
 
     #[test]
     fn should_ignore_comment() {
         let mut scanner = Scanner::new("//foo\n+");
         let token = scanner.scan_token();
-        assert!(matches!(token, Token { tpe: TokenType::Plus, .. }));
+        assert!(matches!(
+            token,
+            Token {
+                tpe: TokenType::Plus,
+                ..
+            }
+        ));
     }
 
     #[test]
     fn should_scan_keyword() {
         let mut scanner = Scanner::new("while");
         let token = scanner.scan_token();
-        assert!(matches!(token, Token { tpe: TokenType::While, .. }));
+        assert!(matches!(
+            token,
+            Token {
+                tpe: TokenType::While,
+                ..
+            }
+        ));
     }
 }

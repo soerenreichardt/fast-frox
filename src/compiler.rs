@@ -20,7 +20,7 @@ impl Compiler {
             println!("{:?} '{}'", token.tpe, lexeme);
 
             match token.tpe {
-                TokenType::EOF => break,
+                TokenType::Eof => break,
                 _ => todo!(),
             }
         }
