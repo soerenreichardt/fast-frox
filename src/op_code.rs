@@ -9,19 +9,19 @@ pub enum OpCode {
     OpAdd = 3,
     OpSubtract = 4,
     OpMultiply = 5,
-    OpDivide = 6
+    OpDivide = 6,
 }
 
 impl InstructionSize for OpCode {
     fn size(&self) -> usize {
         match self {
-            Self::OpReturn 
-            | Self::OpNegate 
+            Self::OpReturn
+            | Self::OpNegate
             | Self::OpAdd
             | Self::OpSubtract
             | Self::OpMultiply
             | Self::OpDivide => 1,
-            Self::OpConstant => 2
+            Self::OpConstant => 2,
         }
     }
 }

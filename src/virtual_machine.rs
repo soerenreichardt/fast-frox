@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value, compiler::Compiler};
+use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value};
 
 pub struct VirtualMachine {
     stack: [Value; 256],
@@ -44,7 +44,7 @@ impl VirtualMachine {
 
             let instruction: OpCode = match (&ip.next()).try_into() {
                 Ok(instruction) => instruction,
-                Err(_) => return InterpretResult::RuntimeError
+                Err(_) => return InterpretResult::RuntimeError,
             };
             match instruction {
                 OpCode::OpReturn => {
@@ -55,13 +55,11 @@ impl VirtualMachine {
                     let constant_index = ip.next();
                     let constant_value = chunk.constants.get(constant_index as usize).unwrap();
                     self.push(*constant_value);
-                },
-                OpCode::OpNegate => {
-                    unsafe { 
-                        let addr = self.stack_top.sub(1);
-                        *addr = -*addr;
-                    }
                 }
+                OpCode::OpNegate => unsafe {
+                    let addr = self.stack_top.sub(1);
+                    *addr = -*addr;
+                },
                 OpCode::OpAdd => self.binary_operation(std::ops::Add::add),
                 OpCode::OpSubtract => self.binary_operation(std::ops::Sub::sub),
                 OpCode::OpMultiply => self.binary_operation(std::ops::Mul::mul),

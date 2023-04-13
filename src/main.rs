@@ -1,6 +1,9 @@
-use std::{env, io::{self, BufRead, Write}, fs};
+use std::{
+    env, fs,
+    io::{self, BufRead, Write},
+};
 
-use fast_frox::virtual_machine::{VirtualMachine, InterpretResult};
+use fast_frox::virtual_machine::{InterpretResult, VirtualMachine};
 
 pub(crate) static DEBUG: bool = false;
 
@@ -13,7 +16,7 @@ fn main() {
     match args.as_slice() {
         [_] => repl(&mut vm),
         [_, path] => runFile(path, &mut vm),
-        _ => panic!("Usage: fast-frox [path]")
+        _ => panic!("Usage: fast-frox [path]"),
     }
 
     drop(vm);
@@ -35,13 +38,10 @@ fn repl(vm: &mut VirtualMachine) {
 }
 
 fn runFile(path: &str, vm: &mut VirtualMachine) {
-    let source = fs::read_to_string(path)
-        .expect("Should have been able to read the file");
+    let source = fs::read_to_string(path).expect("Should have been able to read the file");
     match vm.interpret(source.as_str()) {
         InterpretResult::CompileError => std::process::exit(65),
         InterpretResult::RuntimeError => std::process::exit(70),
-        _ => ()
+        _ => (),
     }
 }
-
-
