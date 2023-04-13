@@ -1,8 +1,10 @@
-use std::{iter::{Enumerate, Peekable}, str::Chars};
+use std::{iter::{Enumerate}, str::Chars};
+
+use crate::peek_peek_iterator::PeekPeekIterator;
 
 pub(crate) struct Scanner<'a> {
-    source_iterator: Peekable<Enumerate<Chars<'a>>>,
-    source: &'a str,
+    source_iterator: PeekPeekIterator<Enumerate<Chars<'a>>>,
+    source_length: usize,
     line: usize,
     start: usize
 }
@@ -66,8 +68,8 @@ pub(crate) enum TokenType {
 impl<'a> Scanner<'a> {
     pub(crate) fn new(source: &'a str) -> Self {
         Scanner {
-            source_iterator: source.chars().enumerate().peekable(),
-            source,
+            source_iterator: PeekPeekIterator::new(source.chars().enumerate()),
+            source_length: source.len(),
             line: 1,
             start: 0
         }
@@ -138,11 +140,12 @@ impl<'a> Scanner<'a> {
     }
 
     fn token(&mut self, tpe: TokenType) -> Token {
-        Token::new(tpe, self.start, self.source_iterator.peek().map(|(pos, _)| pos).unwrap_or(&self.source.len()) - self.start, self.line)
+        let head_position = self.source_iterator.peek().map(|(pos, _)| pos).unwrap_or(&self.source_length);
+        Token::new(tpe, self.start, head_position - self.start, self.line)
     }
 
     fn error(&self, message: String) -> Token {
-        Token::new(TokenType::Error(message), self.start, self.source.len() - self.start, self.line)
+        Token::new(TokenType::Error(message), self.start, self.source_length - self.start, self.line)
     }
 
     fn skip_whitespace(&mut self) {
@@ -159,9 +162,9 @@ impl<'a> Scanner<'a> {
                         self.source_iterator.next();
                         ()
                     },
-                    '/' => match &self.source[*pos+1..*pos+2].chars().peekable().peek() {
+                    '/' => match self.source_iterator.peek_peek() {
                         None => return,
-                        Some('/') => {
+                        Some((_, '/')) => {
                             loop {
                                 match self.source_iterator.next() {
                                     None | Some((_, '\n')) => break,
@@ -199,9 +202,9 @@ impl<'a> Scanner<'a> {
     fn number(&mut self) -> Token {
         self.consume_digits();
 
-        if let Some((pos, '.')) = self.source_iterator.peek() {
-            match self.source[*pos+1..*pos+2].chars().peekable().peek() {
-                Some( c) if c.is_digit(10) => {
+        if let Some((_, '.')) = self.source_iterator.peek() {
+            match self.source_iterator.peek_peek() {
+                Some((_, c)) if c.is_digit(10) => {
                     self.source_iterator.next();
                     self.consume_digits();
                 },
