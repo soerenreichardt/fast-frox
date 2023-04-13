@@ -4,7 +4,7 @@ use crate::peek_peek_iterator::PeekPeekIterator;
 
 pub(crate) struct Scanner<'a> {
     source_iterator: PeekPeekIterator<Enumerate<Chars<'a>>>,
-    source_length: usize,
+    source: &'a str,
     line: usize,
     start: usize
 }
@@ -69,7 +69,7 @@ impl<'a> Scanner<'a> {
     pub(crate) fn new(source: &'a str) -> Self {
         Scanner {
             source_iterator: PeekPeekIterator::new(source.chars().enumerate()),
-            source_length: source.len(),
+            source,
             line: 1,
             start: 0
         }
@@ -140,12 +140,13 @@ impl<'a> Scanner<'a> {
     }
 
     fn token(&mut self, tpe: TokenType) -> Token {
-        let head_position = self.source_iterator.peek().map(|(pos, _)| pos).unwrap_or(&self.source_length);
+        let source_len = &self.source.len();
+        let head_position = self.source_iterator.peek().map(|(pos, _)| pos).unwrap_or(source_len);
         Token::new(tpe, self.start, head_position - self.start, self.line)
     }
 
     fn error(&self, message: String) -> Token {
-        Token::new(TokenType::Error(message), self.start, self.source_length - self.start, self.line)
+        Token::new(TokenType::Error(message), self.start, self.source.len() - self.start, self.line)
     }
 
     fn skip_whitespace(&mut self) {
@@ -231,15 +232,43 @@ impl<'a> Scanner<'a> {
     fn identifier(&mut self) -> Token {
         loop {
             match self.source_iterator.peek() {
-                Some((_, c)) if c.is_digit(10) || c.is_alphabetic() => {
+                Some((_, c)) if c.is_digit(10) || c.is_alphabetic() => {        
                     self.source_iterator.next();
                     ()
                 },
-                _ => ()
+                _ => break
             }
         }
 
-        self.token(TokenType::Identifier)
+        let current_pos = self.source_iterator
+            .peek()
+            .map(|(pos, _)| pos - 1)
+            .unwrap_or(self.source.len());
+        self.token(self.identifier_type(current_pos))
+    }
+
+    // TODO: implement with trie
+    fn identifier_type(&self, current_pos: usize) -> TokenType {
+        let slice = &self.source[self.start..current_pos];
+        match slice {
+            "and" => TokenType::And,
+            "class" => TokenType::Class,
+            "else" => TokenType::Else,
+            "false" => TokenType::False,
+            "for" => TokenType::For,
+            "fun" => TokenType::Fun,
+            "if" => TokenType::If,
+            "nil" => TokenType::Nil,
+            "or" => TokenType::Or,
+            "print" => TokenType::Print,
+            "return" => TokenType::Return,
+            "super" => TokenType::Super,
+            "this" => TokenType::This,
+            "true" => TokenType::True,
+            "var" => TokenType::Var,
+            "while" => TokenType::While,
+            _ => TokenType::Identifier
+        }
     }
 }
 
@@ -267,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn should_parenthesis() {
+    fn should_scan_parenthesis() {
         let mut scanner = Scanner::new("(");
         let token = scanner.scan_token();
         assert!(matches!(token, Token { tpe: TokenType::LeftParen, .. }));
@@ -278,5 +307,12 @@ mod tests {
         let mut scanner = Scanner::new("//foo\n+");
         let token = scanner.scan_token();
         assert!(matches!(token, Token { tpe: TokenType::Plus, .. }));
+    }
+
+    #[test]
+    fn should_scan_keyword() {
+        let mut scanner = Scanner::new("while");
+        let token = scanner.scan_token();
+        assert!(matches!(token, Token { tpe: TokenType::While, .. }));
     }
 }
