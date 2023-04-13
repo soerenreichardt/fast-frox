@@ -1,6 +1,7 @@
 use std::{iter::Enumerate, str::Chars};
+use miette::{Result, NamedSource};
 
-use crate::peek_peek_iterator::PeekPeekIterator;
+use crate::{peek_peek_iterator::PeekPeekIterator, error::CompileError};
 
 pub(crate) struct Scanner<'a> {
     source_iterator: PeekPeekIterator<Enumerate<Chars<'a>>>,
@@ -61,7 +62,6 @@ pub(crate) enum TokenType {
     Var,
     While,
 
-    Error(String),
     Eof,
 }
 
@@ -75,7 +75,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub(crate) fn scan_token(&mut self) -> Token {
+    pub(crate) fn scan_token(&mut self) -> Result<Token> {
         self.skip_whitespace();
         match self.source_iterator.next() {
             None => Token::new(TokenType::Eof, 0, 0, 0),
@@ -85,10 +85,14 @@ impl<'a> Scanner<'a> {
             }
         };
 
-        self.error("Unexpected character.".to_owned())
+        Err(CompileError {
+            msg: "Unexpected character.",
+            src: NamedSource::new("", self.source.to_owned()),
+            span: (self.start, self.source_iterator.peek().map(|(pos, _)| pos - 1).unwrap_or(self.source.len())).into()
+        }.into())
     }
 
-    fn match_char(&mut self, c: char) -> Token {
+    fn match_char(&mut self, c: char) -> Result<Token> {
         match c {
             '(' => self.token(TokenType::LeftParen),
             ')' => self.token(TokenType::RightParen),
@@ -147,30 +151,21 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn token(&mut self, tpe: TokenType) -> Token {
+    fn token(&mut self, tpe: TokenType) -> Result<Token> {
         let source_len = &self.source.len();
         let head_position = self
             .source_iterator
             .peek()
             .map(|(pos, _)| pos)
             .unwrap_or(source_len);
-        Token::new(tpe, self.start, head_position - self.start, self.line)
-    }
-
-    fn error(&self, message: String) -> Token {
-        Token::new(
-            TokenType::Error(message),
-            self.start,
-            self.source.len() - self.start,
-            self.line,
-        )
+        Ok(Token::new(tpe, self.start, head_position - self.start, self.line))
     }
 
     fn skip_whitespace(&mut self) {
         loop {
             match self.source_iterator.peek() {
                 None => return,
-                Some((pos, c)) => match c {
+                Some((_, c)) => match c {
                     ' ' | '\r' | '\t' => {
                         self.source_iterator.next();
                         ()
@@ -196,10 +191,14 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn string(&mut self) -> Token {
+    fn string(&mut self) -> Result<Token> {
         loop {
             match self.source_iterator.peek() {
-                None => return self.error("Unterminated string.".to_owned()),
+                None => return Err(CompileError { 
+                    msg: "Unterminated string.",
+                    src: NamedSource::new("", self.source.to_owned()),
+                    span: (self.start, self.source.len()).into()
+                }.into()),
                 Some((_, '"')) => break,
                 Some((_, c)) => {
                     if c == &'\n' {
@@ -215,7 +214,7 @@ impl<'a> Scanner<'a> {
         self.token(TokenType::String)
     }
 
-    fn number(&mut self) -> Token {
+    fn number(&mut self) -> Result<Token> {
         self.consume_digits();
 
         if let Some((_, '.')) = self.source_iterator.peek() {
@@ -244,7 +243,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn identifier(&mut self) -> Token {
+    fn identifier(&mut self) -> Result<Token> {
         loop {
             match self.source_iterator.peek() {
                 Some((_, c)) if c.is_ascii_digit() || c.is_alphabetic() => {
@@ -288,6 +287,17 @@ impl<'a> Scanner<'a> {
     }
 }
 
+impl<'a> Iterator for Scanner<'a> {
+    type Item = Result<Token>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.scan_token() {
+            Ok(Token { tpe: TokenType::Eof, .. }) => None,
+            token => Some(token)
+        }
+    }
+}
+
 impl Token {
     pub(crate) fn new(tpe: TokenType, start: usize, length: usize, line: usize) -> Self {
         Token {
@@ -306,14 +316,14 @@ mod tests {
     #[test]
     fn should_scan_digit() {
         let mut scanner = Scanner::new("1337.42");
-        let token = scanner.scan_token();
+        let token = scanner.scan_token().unwrap();
         assert_eq!(token, Token::new(TokenType::Number, 0, 7, 1));
     }
 
     #[test]
     fn should_scan_parenthesis() {
         let mut scanner = Scanner::new("(");
-        let token = scanner.scan_token();
+        let token = scanner.scan_token().unwrap();
         assert!(matches!(
             token,
             Token {
@@ -326,7 +336,7 @@ mod tests {
     #[test]
     fn should_ignore_comment() {
         let mut scanner = Scanner::new("//foo\n+");
-        let token = scanner.scan_token();
+        let token = scanner.scan_token().unwrap();
         assert!(matches!(
             token,
             Token {
@@ -339,7 +349,7 @@ mod tests {
     #[test]
     fn should_scan_keyword() {
         let mut scanner = Scanner::new("while");
-        let token = scanner.scan_token();
+        let token = scanner.scan_token().unwrap();
         assert!(matches!(
             token,
             Token {
