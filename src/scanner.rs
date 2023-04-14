@@ -1,5 +1,5 @@
 use std::{iter::Enumerate, str::Chars};
-use miette::{Result, NamedSource};
+use miette::{Result, NamedSource, SourceSpan};
 
 use crate::{peek_peek_iterator::PeekPeekIterator, error::CompileError};
 
@@ -86,7 +86,7 @@ impl<'a> Scanner<'a> {
         };
 
         Err(CompileError {
-            msg: "Unexpected character.",
+            msg: "Unexpected character.".to_owned(),
             src: NamedSource::new("", self.source.to_owned()),
             span: (self.start, self.source_iterator.peek().map(|(pos, _)| pos - 1).unwrap_or(self.source.len())).into()
         }.into())
@@ -195,7 +195,7 @@ impl<'a> Scanner<'a> {
         loop {
             match self.source_iterator.peek() {
                 None => return Err(CompileError { 
-                    msg: "Unterminated string.",
+                    msg: "Unterminated string.".to_owned(),
                     src: NamedSource::new("", self.source.to_owned()),
                     span: (self.start, self.source.len()).into()
                 }.into()),
@@ -306,6 +306,12 @@ impl Token {
             length,
             line,
         }
+    }
+}
+
+impl From<Token> for SourceSpan {
+    fn from(value: Token) -> Self {
+        SourceSpan::new(value.start.into(), value.length.into())
     }
 }
 

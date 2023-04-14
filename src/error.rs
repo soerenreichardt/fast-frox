@@ -3,8 +3,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
 #[error("{}", msg)]
-pub(crate) struct CompileError<'a> {
-    pub(crate) msg: &'a str,
+pub(crate) struct CompileError {
+    pub(crate) msg: String,
 
     #[source_code]
     pub(crate) src: NamedSource,

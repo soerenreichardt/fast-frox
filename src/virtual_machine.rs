@@ -1,10 +1,11 @@
 use std::mem::size_of;
 
-use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value};
+use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value, compiler::{Compiler, Parser}, scanner::Token};
 
 pub struct VirtualMachine {
     stack: [Value; 256],
     stack_top: *mut f64,
+    compiler: Compiler,
     debug: bool,
 }
 
@@ -21,9 +22,11 @@ pub enum InterpretResult {
 impl VirtualMachine {
     pub fn new(debug: bool) -> Self {
         let mut stack = [0.0; 256];
+        let parser = Parser::default();
         VirtualMachine {
             stack,
             stack_top: stack.as_mut_ptr(),
+            compiler: Compiler::new(parser),
             debug,
         }
     }
@@ -33,7 +36,15 @@ impl VirtualMachine {
     }
 
     pub fn interpret(&mut self, source: &str) -> InterpretResult {
-        todo!()
+        let mut chunk = Chunk::new();
+
+        if !self.compiler.compile(source, &mut chunk,) {
+            return InterpretResult::CompileError;
+        }
+
+        let ip = InstructionPointer::new(&chunk.code);
+
+        self.run(ip, &chunk)
     }
 
     fn run(&mut self, mut ip: InstructionPointer, chunk: &Chunk) -> InterpretResult {
