@@ -1,6 +1,7 @@
 use std::mem::size_of;
 
-use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value, compiler::{Compiler, Parser}, scanner::Token};
+use crate::{chunk::Chunk, debug::ChunkDebug, op_code::OpCode, value::Value, compiler::{Compiler, Parser}, error::RuntimeError};
+use miette::Result;
 
 pub struct VirtualMachine {
     stack: [Value; 256],
@@ -35,19 +36,17 @@ impl VirtualMachine {
         self.stack_top = self.stack.as_mut_ptr();
     }
 
-    pub fn interpret(&mut self, source: &str) -> InterpretResult {
+    pub fn interpret(&mut self, source: &str) -> Result<()> {
         let mut chunk = Chunk::new();
 
-        if !self.compiler.compile(source, &mut chunk,) {
-            return InterpretResult::CompileError;
-        }
+        self.compiler.compile(source, &mut chunk,)?;
 
         let ip = InstructionPointer::new(&chunk.code);
 
         self.run(ip, &chunk)
     }
 
-    fn run(&mut self, mut ip: InstructionPointer, chunk: &Chunk) -> InterpretResult {
+    fn run(&mut self, mut ip: InstructionPointer, chunk: &Chunk) -> Result<()> {
         loop {
             if self.debug {
                 self.debug(&ip, chunk);
@@ -55,12 +54,12 @@ impl VirtualMachine {
 
             let instruction: OpCode = match (&ip.next()).try_into() {
                 Ok(instruction) => instruction,
-                Err(_) => return InterpretResult::RuntimeError,
+                Err(error) => return Err(RuntimeError { msg: error }.into()),
             };
             match instruction {
                 OpCode::OpReturn => {
                     println!("{}", self.pop());
-                    return InterpretResult::Ok;
+                    return Ok(());
                 }
                 OpCode::OpConstant => {
                     let constant_index = ip.next();

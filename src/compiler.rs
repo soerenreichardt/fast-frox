@@ -1,9 +1,10 @@
 use crate::{
     chunk::Chunk,
     error::CompileError,
-    scanner::{Scanner, Token, TokenType},
+    scanner::{Scanner, Token, TokenType}, op_code::OpCode,
 };
-use miette::{ErrReport, NamedSource, Result};
+use miette::{NamedSource, Result};
+
 
 pub(crate) struct Compiler {
     parser: Parser,
@@ -13,8 +14,6 @@ pub(crate) struct Compiler {
 pub(crate) struct Parser {
     previous: Option<Token>,
     current: Option<Token>,
-    had_error: bool,
-    panic_mode: bool,
 }
 
 impl Compiler {
@@ -22,20 +21,18 @@ impl Compiler {
         Compiler { parser }
     }
 
-    pub(crate) fn compile(&mut self, source: &str, chunk: &mut Chunk) -> bool {
+    pub(crate) fn compile(&mut self, source: &str, chunk: &mut Chunk) -> Result<()> {
         let scanner = Scanner::new(source);
         let mut token_iterator = scanner.into_iter();
 
-        self.parser.had_error = false;
-        self.parser.panic_mode = false;
+        self.advance(&mut token_iterator)?;
+        self.consume(TokenType::Eof, &mut token_iterator, source)?;
 
-        self.advance(&mut token_iterator);
-        self.consume(TokenType::Eof, &mut token_iterator, source);
-
-        !self.parser.had_error
+        self.end_compiler(chunk);
+        Ok(())
     }
 
-    fn advance<I: Iterator<Item = Result<Token>>>(&mut self, token_iterator: &mut I) {
+    fn advance<I: Iterator<Item = Result<Token>>>(&mut self, token_iterator: &mut I) -> Result<()> {
         self.parser.previous = self.parser.current.take();
 
         loop {
@@ -45,42 +42,57 @@ impl Compiler {
                     break;
                 }
                 Some(Err(error)) => {
-                    self.error(error);
+                    return Err(error);
                 }
                 None => break,
             };
         }
 
-        todo!()
-    }
-
-    fn error(&mut self, error: ErrReport) {
-        if self.parser.panic_mode {
-            return;
-        }
-        self.parser.panic_mode = true;
-        println!("{}", error);
-        self.parser.had_error = true;
+        Ok(())
     }
 
     fn consume<I: Iterator<Item = Result<Token>>>(
         &mut self,
         expected_type: TokenType,
         token_iterator: &mut I,
-        src: &str
-    ) {
+        src: &str,
+    ) -> Result<()> {
         if self.parser.current.as_ref().map(|token| &token.tpe) == Some(&expected_type) {
-            self.advance(token_iterator);
+            self.advance(token_iterator)?;
+            return Ok(())
         } else {
             let current_token = self.parser.current.take().unwrap();
-            self.error(
+            Err(
                 CompileError {
                     msg: format!("Expected token of type {:?}", expected_type),
                     src: NamedSource::new("", src.to_owned()),
                     span: current_token.into(),
-                }
-                .into()
+                }.into()
             )
         }
+    }
+
+    fn emit_byte(&self, byte: u8, chunk: &mut Chunk) {
+        chunk.write_chunk(
+            byte,
+            self.parser
+                .previous
+                .as_ref()
+                .map(|token| token.line)
+                .unwrap_or(0),
+        );
+    }
+
+    fn emit_bytes(&self, byte1: u8, byte2: u8, chunk: &mut Chunk)  {
+        self.emit_byte(byte1, chunk);
+        self.emit_byte(byte2, chunk);
+    }
+
+    fn emit_return(&self, chunk: &mut Chunk) {
+        self.emit_byte(OpCode::OpReturn as u8, chunk)
+    }
+
+    fn end_compiler(&self, chunk: &mut Chunk) {
+        self.emit_return(chunk)
     }
 }
