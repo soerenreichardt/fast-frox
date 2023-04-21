@@ -31,7 +31,8 @@ impl<'a> Compiler<'a> {
         self.expression()?;
         self.consume(TokenType::Eof, &mut token_iterator)?;
 
-        self.end_compiler(chunk)
+        self.end_compiler(chunk);
+        Ok(())
     }
 
     fn advance<I: Iterator<Item = Result<Token>>>(&mut self, token_iterator: &mut I) -> Result<()> {
@@ -72,11 +73,11 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn end_compiler(&self, chunk: &mut Chunk) -> Result<()> {
+    fn end_compiler(&self, chunk: &mut Chunk) {
         self.emit_return(chunk)
     }
 
-    fn number(&self, chunk: &mut Chunk) -> Result<()> {
+    fn number(&self, chunk: &mut Chunk) {
         let previous = self.parser.previous.as_ref().expect("No previous value");
         let string_value = &self.source[previous.start..previous.start + previous.length];
         println!("here {}", string_value);
@@ -96,11 +97,12 @@ impl<'a> Compiler<'a> {
 
         match op_type {
             TokenType::Minus => self.emit_byte(OpCode::OpSubtract as u8, chunk),
-            _ => Ok(())
-        }
+            _ => ()
+        };
+        Ok(())
     }
 
-    fn emit_byte(&self, byte: u8, chunk: &mut Chunk) -> Result<()> {
+    fn emit_byte(&self, byte: u8, chunk: &mut Chunk) {
         chunk.write_chunk(
             byte,
             self.parser
@@ -109,19 +111,18 @@ impl<'a> Compiler<'a> {
                 .map(|token| token.line)
                 .unwrap_or(0),
         );
-        Ok(())
     }
 
-    fn emit_bytes(&self, byte1: u8, byte2: u8, chunk: &mut Chunk) -> Result<()> {
-        self.emit_byte(byte1, chunk)?;
+    fn emit_bytes(&self, byte1: u8, byte2: u8, chunk: &mut Chunk) {
+        self.emit_byte(byte1, chunk);
         self.emit_byte(byte2, chunk)
     }
 
-    fn emit_return(&self, chunk: &mut Chunk) -> Result<()> {
+    fn emit_return(&self, chunk: &mut Chunk) {
         self.emit_byte(OpCode::OpReturn as u8, chunk)
     }
 
-    fn emit_constant(&self, value: Value, chunk: &mut Chunk) -> Result<()> {
+    fn emit_constant(&self, value: Value, chunk: &mut Chunk) {
         self.emit_bytes(OpCode::OpConstant as u8, self.make_constant(value, chunk)?, chunk)
     }
 
