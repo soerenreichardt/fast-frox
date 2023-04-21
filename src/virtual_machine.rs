@@ -6,7 +6,6 @@ use miette::Result;
 pub struct VirtualMachine {
     stack: [Value; 256],
     stack_top: *mut f64,
-    compiler: Compiler,
     debug: bool,
 }
 
@@ -23,11 +22,9 @@ pub enum InterpretResult {
 impl VirtualMachine {
     pub fn new(debug: bool) -> Self {
         let mut stack = [0.0; 256];
-        let parser = Parser::default();
         VirtualMachine {
             stack,
             stack_top: stack.as_mut_ptr(),
-            compiler: Compiler::new(parser),
             debug,
         }
     }
@@ -38,8 +35,10 @@ impl VirtualMachine {
 
     pub fn interpret(&mut self, source: &str) -> Result<()> {
         let mut chunk = Chunk::new();
+        let parser = Parser::default();
+        let mut compiler = Compiler::new(parser, source);
 
-        self.compiler.compile(source, &mut chunk,)?;
+        compiler.compile(&mut chunk)?;
 
         let ip = InstructionPointer::new(&chunk.code);
 
