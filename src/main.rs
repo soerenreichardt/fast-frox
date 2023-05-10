@@ -6,7 +6,7 @@ use fast_frox::error::ArgumentError;
 use fast_frox::virtual_machine::VirtualMachine;
 use miette::Result;
 
-pub(crate) static DEBUG: bool = false;
+pub(crate) static DEBUG: bool = true;
 
 fn main() -> Result<()> {
     let args = env::args().collect::<Vec<_>>();

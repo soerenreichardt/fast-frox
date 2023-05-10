@@ -4,7 +4,7 @@ use crate::{
     error::CompileError,
     op_code::OpCode,
     scanner::{Scanner, Token, TokenType},
-    value::Value,
+    value::Value, debug::ChunkDebug,
 };
 use miette::{NamedSource, Result};
 
@@ -13,6 +13,7 @@ pub(crate) struct Compiler<'a> {
     source: &'a str,
     scanner: Scanner<'a>,
     chunk: &'a mut Chunk,
+    debug: bool
 }
 
 #[derive(Default)]
@@ -44,12 +45,13 @@ struct ParseRule<'a> {
 }
 
 impl<'a> Compiler<'a> {
-    pub(crate) fn new(parser: Parser, source: &'a str, chunk: &'a mut Chunk) -> Self {
+    pub(crate) fn new(parser: Parser, source: &'a str, chunk: &'a mut Chunk, debug: bool) -> Self {
         Compiler {
             parser,
             source,
             scanner: Scanner::new(source),
             chunk,
+            debug,
         }
     }
 
@@ -94,6 +96,9 @@ impl<'a> Compiler<'a> {
     }
 
     fn end_compiler(&mut self) {
+        if self.debug {
+            self.chunk.disassemblee_chunk("code")
+        }
         self.emit_return()
     }
 
@@ -119,7 +124,7 @@ impl<'a> Compiler<'a> {
         self.parse_precedence(Precedence::Unary)?;
 
         match op_type {
-            TokenType::Minus => self.emit_byte(OpCode::OpSubtract as u8),
+            TokenType::Minus => self.emit_byte(OpCode::OpNegate as u8),
             _ => (),
         };
         Ok(())
