@@ -18,7 +18,7 @@ pub(crate) struct Token {
     pub(crate) line: usize,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum TokenType {
     LeftParen,
     RightParen,
@@ -77,19 +77,20 @@ impl<'a> Scanner<'a> {
 
     pub(crate) fn scan_token(&mut self) -> Result<Token> {
         self.skip_whitespace();
-        match self.source_iterator.next() {
-            None => Token::new(TokenType::Eof, 0, 0, 0),
+        let next_char = self.source_iterator.next();
+        match next_char {
+            None => return Ok(Token::new(TokenType::Eof, 0, 0, 0)),
             Some((pos, c)) => {
                 self.start = pos;
                 return self.match_char(c);
             }
         };
 
-        Err(CompileError {
-            msg: "Unexpected character.".to_owned(),
-            src: NamedSource::new("", self.source.to_owned()),
-            span: (self.start, self.source_iterator.peek().map(|(pos, _)| pos - 1).unwrap_or(self.source.len())).into()
-        }.into())
+        // Err(CompileError {
+        //     msg: format!("Unexpected character `{:?}`", next_char),
+        //     src: NamedSource::new("", self.source.to_owned()),
+        //     span: (self.start, self.source_iterator.peek().map(|(pos, _)| pos - 1).unwrap_or(self.source.len())).into()
+        // }.into())
     }
 
     fn match_char(&mut self, c: char) -> Result<Token> {
@@ -183,7 +184,7 @@ impl<'a> Scanner<'a> {
                                 _ => (),
                             }
                         },
-                        _ => todo!(),
+                        _ => return,
                     },
                     _ => return,
                 },
@@ -292,7 +293,7 @@ impl<'a> Iterator for Scanner<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.scan_token() {
-            Ok(Token { tpe: TokenType::Eof, .. }) => None,
+            // Ok(Token { tpe: TokenType::Eof, .. }) => None,
             token => Some(token)
         }
     }

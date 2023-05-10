@@ -1,3 +1,4 @@
+
 use crate::{
     chunk::Chunk,
     error::CompileError,
@@ -10,7 +11,8 @@ use miette::{NamedSource, Result};
 pub(crate) struct Compiler<'a> {
     parser: Parser,
     source: &'a str,
-    scanner: Scanner<'a>
+    scanner: Scanner<'a>,
+    chunk: &'a mut Chunk,
 }
 
 #[derive(Default)]
@@ -20,7 +22,7 @@ pub(crate) struct Parser {
 }
 
 #[repr(u8)]
-#[derive(Clone)]
+#[derive(Clone, PartialEq, PartialOrd)]
 enum Precedence {
     None,
     Assignment,
@@ -35,49 +37,48 @@ enum Precedence {
     Primary,
 }
 
-struct ParseRule {
-    prefix_fn: fn() -> (),
-    infix_fn: Option<fn() -> ()>,
+struct ParseRule<'a> {
+    prefix_fn: Option<fn(&mut Compiler<'a>) -> Result<()>>,
+    infix_fn: Option<fn(&mut Compiler<'a>) -> Result<()>>,
     precedence: Precedence,
 }
 
-impl<'a,> Compiler<'a> {
-    pub(crate) fn new(parser: Parser, source: &'a str) -> Self {
-        Compiler { parser, source, scanner: Scanner::new(source) }
+impl<'a> Compiler<'a> {
+    pub(crate) fn new(parser: Parser, source: &'a str, chunk: &'a mut Chunk) -> Self {
+        Compiler {
+            parser,
+            source,
+            scanner: Scanner::new(source),
+            chunk,
+        }
     }
 
-    pub(crate) fn compile(&mut self, chunk: &mut Chunk) -> Result<()> {
+    pub(crate) fn compile(&mut self) -> Result<()> {
         self.advance()?;
         self.expression()?;
         self.consume(TokenType::Eof)?;
 
-        self.end_compiler(chunk);
+        self.end_compiler();
         Ok(())
     }
 
     fn advance(&mut self) -> Result<()> {
         self.parser.previous = self.parser.current.take();
 
-        loop {
-            match self.scanner.next() {
-                Some(Ok(token)) => {
-                    self.parser.current = Some(token);
-                    break;
-                }
-                Some(Err(error)) => {
-                    return Err(error);
-                }
-                None => break,
-            };
-        }
+        match self.scanner.next() {
+            Some(Ok(token)) => {
+                self.parser.current = Some(token);
+            }
+            Some(Err(error)) => {
+                return Err(error);
+            }
+            None => (),
+        };
 
         Ok(())
     }
 
-    fn consume(
-        &mut self,
-        expected_type: TokenType,
-    ) -> Result<()> {
+    fn consume(&mut self, expected_type: TokenType) -> Result<()> {
         if self.parser.current.as_ref().map(|token| &token.tpe) == Some(&expected_type) {
             self.advance()?;
             return Ok(());
@@ -92,21 +93,20 @@ impl<'a,> Compiler<'a> {
         }
     }
 
-    fn end_compiler(&self, chunk: &mut Chunk) {
-        self.emit_return(chunk)
+    fn end_compiler(&mut self) {
+        self.emit_return()
     }
 
-    fn expression(&self) -> Result<()> {
-        self.parse_precedence(Precedence::Assignment);
-        todo!()
+    fn expression(&mut self) -> Result<()> {
+        self.parse_precedence(Precedence::Assignment)
     }
 
-    fn number(&self, chunk: &mut Chunk) -> Result<()> {
+    fn number(&mut self) -> Result<()> {
         let previous = self.parser.previous.as_ref().expect("No previous value");
         let string_value = &self.source[previous.start..previous.start + previous.length];
         let value = string_value.parse::<Value>().unwrap();
 
-        self.emit_constant(value as Value, chunk)
+        self.emit_constant(value as Value)
     }
 
     fn grouping(&mut self) -> Result<()> {
@@ -114,39 +114,90 @@ impl<'a,> Compiler<'a> {
         self.consume(TokenType::RightParen)
     }
 
-    fn unary(&self, chunk: &mut Chunk) -> Result<()> {
-        let op_type = &self.previous().tpe;
-        self.parse_precedence(Precedence::Unary);
+    fn unary(&mut self) -> Result<()> {
+        let op_type = self.previous().tpe.clone();
+        self.parse_precedence(Precedence::Unary)?;
 
         match op_type {
-            TokenType::Minus => self.emit_byte(OpCode::OpSubtract as u8, chunk),
+            TokenType::Minus => self.emit_byte(OpCode::OpSubtract as u8),
             _ => (),
         };
         Ok(())
     }
 
-    fn binary(&self, chunk: &mut Chunk) -> Result<()> {
-        let operator_type = &self.previous().tpe;
-        let rule = self.get_rule(operator_type);
-        self.parse_precedence(rule.precedence.next());
+    fn binary(&mut self) -> Result<()> {
+        let operator_type = self.previous().tpe.clone();
+        let rule = Compiler::get_rule(&operator_type);
+        self.parse_precedence(rule.precedence.next())?;
         match operator_type {
-            TokenType::Plus => self.emit_byte(OpCode::OpAdd as u8, chunk),
-            TokenType::Minus => self.emit_byte(OpCode::OpSubtract as u8, chunk),
-            TokenType::Star => self.emit_byte(OpCode::OpMultiply as u8, chunk),
-            TokenType::Slash => self.emit_byte(OpCode::OpDivide as u8, chunk),
+            TokenType::Plus => self.emit_byte(OpCode::OpAdd as u8),
+            TokenType::Minus => self.emit_byte(OpCode::OpSubtract as u8),
+            TokenType::Star => self.emit_byte(OpCode::OpMultiply as u8),
+            TokenType::Slash => self.emit_byte(OpCode::OpDivide as u8),
             _ => (),
         };
         Ok(())
     }
 
-    fn parse_precedence(&self, precedence: Precedence) {}
+    fn parse_precedence(&mut self, precedence: Precedence) -> Result<()> {
+        self.advance()?;
+        let prefix_rule = Compiler::get_rule(&self.previous().tpe)
+            .prefix_fn
+            .expect("No prefix function found");
+        prefix_rule(self)?;
 
-    fn get_rule(&self, operator_type: &TokenType) -> ParseRule {
-        todo!()
+        while precedence <= Compiler::get_rule(&self.current().tpe).precedence {
+            self.advance()?;
+            let infix_rule = Compiler::get_rule(&self.previous().tpe)
+                .infix_fn
+                .expect("No infix function found");
+            infix_rule(self)?;
+        }
+        Ok(())
     }
 
-    fn emit_byte(&self, byte: u8, chunk: &mut Chunk) {
-        chunk.write_chunk(
+    fn get_rule(operator_type: &TokenType) -> ParseRule<'a> {
+        match operator_type {
+            TokenType::LeftParen => ParseRule {
+                prefix_fn: Some(Compiler::grouping),
+                infix_fn: None,
+                precedence: Precedence::None,
+            },
+            TokenType::Minus => ParseRule {
+                prefix_fn: Some(Compiler::unary),
+                infix_fn: Some(Compiler::binary),
+                precedence: Precedence::Term,
+            },
+            TokenType::Plus => ParseRule {
+                prefix_fn: None,
+                infix_fn: Some(Compiler::binary),
+                precedence: Precedence::Term,
+            },
+            TokenType::Slash => ParseRule {
+                prefix_fn: None,
+                infix_fn: Some(Compiler::binary),
+                precedence: Precedence::Factor,
+            },
+            TokenType::Star => ParseRule {
+                prefix_fn: None,
+                infix_fn: Some(Compiler::binary),
+                precedence: Precedence::Factor,
+            },
+            TokenType::Number => ParseRule {
+                prefix_fn: Some(Compiler::number),
+                infix_fn: None,
+                precedence: Precedence::None,
+            },
+            _ => ParseRule {
+                prefix_fn: None,
+                infix_fn: None,
+                precedence: Precedence::None,
+            },
+        }
+    }
+
+    fn emit_byte(&mut self, byte: u8) {
+        self.chunk.write_chunk(
             byte,
             self.parser
                 .previous
@@ -156,23 +207,23 @@ impl<'a,> Compiler<'a> {
         );
     }
 
-    fn emit_bytes(&self, byte1: u8, byte2: u8, chunk: &mut Chunk) {
-        self.emit_byte(byte1, chunk);
-        self.emit_byte(byte2, chunk)
+    fn emit_bytes(&mut self, byte1: u8, byte2: u8) {
+        self.emit_byte(byte1);
+        self.emit_byte(byte2);
     }
 
-    fn emit_return(&self, chunk: &mut Chunk) {
-        self.emit_byte(OpCode::OpReturn as u8, chunk)
+    fn emit_return(&mut self) {
+        self.emit_byte(OpCode::OpReturn as u8)
     }
 
-    fn emit_constant(&self, value: Value, chunk: &mut Chunk) -> Result<()> {
-        let constant_position = self.make_constant(value, chunk)?;
-        self.emit_bytes(OpCode::OpConstant as u8, constant_position, chunk);
+    fn emit_constant(&mut self, value: Value) -> Result<()> {
+        let constant_position = self.make_constant(value)?;
+        self.emit_bytes(OpCode::OpConstant as u8, constant_position);
         Ok(())
     }
 
-    fn make_constant(&self, value: Value, chunk: &mut Chunk) -> Result<u8> {
-        let constant_position = chunk.add_constant(value);
+    fn make_constant(&mut self, value: Value) -> Result<u8> {
+        let constant_position = self.chunk.add_constant(value);
         match constant_position {
             u8::MAX => {
                 let previous = self.previous();

@@ -36,9 +36,9 @@ impl VirtualMachine {
     pub fn interpret(&mut self, source: &str) -> Result<()> {
         let mut chunk = Chunk::new();
         let parser = Parser::default();
-        let mut compiler = Compiler::new(parser, source);
+        let mut compiler = Compiler::new(parser, source, &mut chunk);
 
-        compiler.compile(&mut chunk)?;
+        compiler.compile()?;
 
         let ip = InstructionPointer::new(&chunk.code);
 
