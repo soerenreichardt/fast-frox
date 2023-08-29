@@ -16,7 +16,13 @@ pub(crate) struct CompileError {
 #[derive(Error, Debug, Diagnostic)]
 #[error("{}", msg)]
 pub(crate) struct RuntimeError {
-    pub(crate) msg: String,
+    pub(crate) msg: String
+}
+
+impl RuntimeError {
+    pub(crate) fn new(msg: String) -> Self {
+        RuntimeError { msg }
+    }
 }
 
 #[derive(Error, Debug, Diagnostic)]

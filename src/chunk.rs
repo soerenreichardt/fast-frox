@@ -41,7 +41,7 @@ impl Chunk {
         self.lines.push(Line { line, length: 1 });
     }
 
-    fn get_line(&self, offset: usize) -> usize {
+    pub(crate) fn get_line(&self, offset: usize) -> usize {
         let mut length = 0;
         let mut last_line = self.lines.first().unwrap();
         for line in &self.lines {
@@ -92,6 +92,9 @@ impl ChunkDebug<OpCode> for Chunk {
             OpCode::OpSubtract => println!("OP_SUBTRACT"),
             OpCode::OpMultiply => println!("OP_MULTIPLY"),
             OpCode::OpDivide => println!("OP_DIVIDE"),
+            OpCode::OpTrue => println!("OP_TRUE"),
+            OpCode::OpFalse => println!("OP_FALSE"),
+            OpCode::OpNil => println!("OP_NIL")
         }
         instruction.size()
     }

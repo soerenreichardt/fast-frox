@@ -5,7 +5,7 @@ use miette::Result;
 
 pub struct VirtualMachine {
     stack: [Value; 256],
-    stack_top: *mut f64,
+    stack_top: *mut Value,
     debug: bool,
 }
 
@@ -21,7 +21,7 @@ pub enum InterpretResult {
 
 impl VirtualMachine {
     pub fn new(debug: bool) -> Self {
-        let mut stack = [0.0; 256];
+        let mut stack = [Value::Nil; 256];
         VirtualMachine {
             stack,
             stack_top: stack.as_mut_ptr(),
@@ -40,12 +40,12 @@ impl VirtualMachine {
 
         compiler.compile()?;
 
-        let ip = InstructionPointer::new(&chunk.code);
+        let mut ip = InstructionPointer::new(&chunk.code);
 
-        self.run(ip, &chunk)
+        self.run(&mut ip, &chunk).map_err(|err| self.runtime_error(err.to_string(), &ip, &chunk).into())
     }
 
-    fn run(&mut self, mut ip: InstructionPointer, chunk: &Chunk) -> Result<()> {
+    fn run(&mut self, ip: &mut InstructionPointer, chunk: &Chunk) -> Result<()> {
         loop {
             if self.debug {
                 self.debug(&ip, chunk);
@@ -67,12 +67,15 @@ impl VirtualMachine {
                 }
                 OpCode::OpNegate => unsafe {
                     let addr = self.stack_top.sub(1);
-                    *addr = -*addr;
+                    *addr = (-*addr)?;
                 },
-                OpCode::OpAdd => self.binary_operation(std::ops::Add::add),
-                OpCode::OpSubtract => self.binary_operation(std::ops::Sub::sub),
-                OpCode::OpMultiply => self.binary_operation(std::ops::Mul::mul),
-                OpCode::OpDivide => self.binary_operation(std::ops::Div::div),
+                OpCode::OpAdd => self.binary_operation(std::ops::Add::add)?,
+                OpCode::OpSubtract => self.binary_operation(std::ops::Sub::sub)?,
+                OpCode::OpMultiply => self.binary_operation(std::ops::Mul::mul)?,
+                OpCode::OpDivide => self.binary_operation(std::ops::Div::div)?,
+                OpCode::OpTrue => self.push(Value::Boolean(true)),
+                OpCode::OpFalse => self.push(Value::Boolean(false)),
+                OpCode::OpNil => self.push(Value::Nil)
             }
         }
     }
@@ -91,10 +94,27 @@ impl VirtualMachine {
         }
     }
 
-    fn binary_operation<Op: FnOnce(Value, Value) -> Value>(&mut self, op: Op) {
-        let rhs = self.pop();
-        let lhs = self.pop();
-        self.push(op(lhs, rhs));
+    fn peek(&mut self, distance: usize) -> Value {
+        unsafe {
+            *self.stack_top.sub(distance + 1)
+        }
+    }
+
+    fn binary_operation<Op: FnOnce(Value, Value) -> Result<Value>>(&mut self, op: Op) -> Result<()> {
+        let rhs = self.peek(0);
+        let lhs = self.peek(1);
+        let result = op(lhs, rhs)?;
+        self.pop();
+        self.pop();
+        self.push(result);
+        Ok(())
+    }
+
+    fn runtime_error(&self, message: String, ip: &InstructionPointer, chunk: &Chunk) -> RuntimeError {
+        let offset = ip.address() - chunk.code.as_ptr() as usize - 1;
+        let line = chunk.get_line(offset);
+        let message = format!("{}\n[{}] {}", message, offset, line);
+        RuntimeError { msg: message }
     }
 
     fn debug(&self, ip: &InstructionPointer, chunk: &Chunk) {

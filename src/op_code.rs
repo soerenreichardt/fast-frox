@@ -10,6 +10,9 @@ pub enum OpCode {
     OpSubtract = 4,
     OpMultiply = 5,
     OpDivide = 6,
+    OpNil = 7,
+    OpTrue = 8,
+    OpFalse = 9
 }
 
 impl InstructionSize for OpCode {
@@ -20,7 +23,10 @@ impl InstructionSize for OpCode {
             | Self::OpAdd
             | Self::OpSubtract
             | Self::OpMultiply
-            | Self::OpDivide => 1,
+            | Self::OpDivide
+            | Self::OpNil
+            | Self::OpTrue
+            | Self::OpFalse => 1,
             Self::OpConstant => 2,
         }
     }
@@ -38,6 +44,9 @@ impl TryFrom<&u8> for OpCode {
             4 => Ok(OpCode::OpSubtract),
             5 => Ok(OpCode::OpMultiply),
             6 => Ok(OpCode::OpDivide),
+            7 => Ok(OpCode::OpNil),
+            8 => Ok(OpCode::OpTrue),
+            9 => Ok(OpCode::OpFalse),
             _ => Err("unknown value".to_string()),
         }
     }

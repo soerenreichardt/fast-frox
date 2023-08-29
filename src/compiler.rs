@@ -1,7 +1,7 @@
 
 use crate::{
     chunk::Chunk,
-    error::CompileError,
+    error::{CompileError, RuntimeError},
     op_code::OpCode,
     scanner::{Scanner, Token, TokenType},
     value::Value, debug::ChunkDebug,
@@ -109,9 +109,9 @@ impl<'a> Compiler<'a> {
     fn number(&mut self) -> Result<()> {
         let previous = self.parser.previous.as_ref().expect("No previous value");
         let string_value = &self.source[previous.start..previous.start + previous.length];
-        let value = string_value.parse::<Value>().unwrap();
+        let value = string_value.parse::<f64>().unwrap();
 
-        self.emit_constant(value as Value)
+        self.emit_constant(Value::Number(value))
     }
 
     fn grouping(&mut self) -> Result<()> {
@@ -141,6 +141,16 @@ impl<'a> Compiler<'a> {
             TokenType::Slash => self.emit_byte(OpCode::OpDivide as u8),
             _ => (),
         };
+        Ok(())
+    }
+
+    fn literal(&mut self) -> Result<()> {
+        match self.previous().tpe.clone() {
+            TokenType::False => self.emit_byte(OpCode::OpFalse as u8),
+            TokenType::True => self.emit_byte(OpCode::OpTrue as u8),
+            TokenType::Nil => self.emit_byte(OpCode::OpNil as u8),
+            _ => return Err(RuntimeError::new("Not a literal".to_string()).into())
+        }
         Ok(())
     }
 
@@ -192,6 +202,11 @@ impl<'a> Compiler<'a> {
                 prefix_fn: Some(Compiler::number),
                 infix_fn: None,
                 precedence: Precedence::None,
+            },
+            TokenType::True | TokenType::False | TokenType::Nil => ParseRule {
+                prefix_fn: Some(Compiler::literal),
+                infix_fn: None,
+                precedence: Precedence::None
             },
             _ => ParseRule {
                 prefix_fn: None,
